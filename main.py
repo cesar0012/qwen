@@ -22,7 +22,7 @@ QWEN_CLIENT_SECRET = os.getenv("QWEN_CLIENT_SECRET", "dummy_client_secret")
 
 # Clave secreta para proteger el endpoint de credenciales.
 # Esta se carga desde la variable de entorno de Coolify.
-CREDENTIALS_API_KEY = os.getenv("CREDENTIALS_API_KEY")
+PROXY_API_KEY = os.getenv("PROXY_API_KEY")
 
 # --- Funciones de Ayuda ---
 def load_credentials_from_file():
@@ -92,11 +92,11 @@ def refresh_token_if_needed():
 # --- Función de Seguridad ---
 async def verify_api_key(x_api_key: str = Header(None)):
     """Verifica que la solicitud incluya la clave secreta correcta."""
-    if CREDENTIALS_API_KEY is None:
+    if PROXY_API_KEY is None:
         # Medida de seguridad: si la clave secreta no está configurada en el servidor, no permitir ninguna solicitud.
-        raise HTTPException(status_code=500, detail="El servidor no tiene una CREDENTIALS_API_KEY configurada.")
+        raise HTTPException(status_code=500, detail="El servidor no tiene una PROXY_API_KEY configurada.")
         
-    if x_api_key is None or x_api_key != CREDENTIALS_API_KEY:
+    if x_api_key is None or x_api_key != PROXY_API_KEY:
         raise HTTPException(status_code=401, detail="API Key inválida o no proporcionada en la cabecera X-API-Key")
 
 # --- Endpoints de la API ---
