@@ -6,7 +6,7 @@ from typing import Optional
 
 import httpx
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import JSONResponse, Response  # <--- CAMBIO: Añadido Response
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -23,10 +23,10 @@ class QwenCredentials(BaseModel):
 # --- Variables Globales y Funciones de Ayuda ---
 app = FastAPI()
 # Usaremos un archivo para persistir las credenciales, simulando el oauth_creds.json
-CREDS_FILE = Path("qwen_credentials.json") # <--- CAMBIO: Nombre del archivo corregido
+CREDS_FILE = Path("qwen_credentials.json")
 
 # URL del endpoint de Qwen al que reenviaremos las solicitudes
-QWEN_API_BASE_URL = "https://portal.qwen.ai" # <--- CAMBIO: Quitamos /v1 para que el path lo complete
+QWEN_API_BASE_URL = "https://portal.qwen.ai"
 
 # URL del endpoint de token de Qwen para refrescar el access_token
 # NOTA: Este es el endpoint estándar para refrescar tokens OAuth2.
@@ -105,8 +105,37 @@ async def refresh_access_token_if_needed() -> QwenCredentials:
     # Si no ha expirado, simplemente devuelve las credenciales actuales
     return creds
 
+# --- <--- CAMBIO IMPORTANTE: EL ENDPOINT DE SETUP AHORA VA ANTES DEL ENDPOINT PRINCIPAL ---
+
+# --- Endpoint de Configuración Inicial (SOLO PARA LA PRIMERA VEZ) ---
+class InitialCredentials(BaseModel):
+    access_token: str
+    refresh_token: str
+    # La expiración inicial en segundos (ej: 3600 para 1 hora)
+    expires_in: int = 3600 
+
+@app.post("/setup")
+async def setup_credentials(initial_creds: InitialCredentials):
+    """
+    Endpoint para configurar las credenciales por primera vez.
+    DEBERÍAS PROTEGER ESTE ENDPOINT O ELIMINARLO EN PRODUCCIÓN.
+    """
+    if CREDS_FILE.exists():
+        raise HTTPException(status_code=400, detail="Las credenciales ya han sido configuradas.")
+    
+    expiry_timestamp = int(time.time()) + initial_creds.expires_in
+    
+    creds_to_save = QwenCredentials(
+        access_token=initial_creds.access_token,
+        refresh_token=initial_creds.refresh_token,
+        expiry_date=expiry_timestamp
+    )
+    save_credentials(creds_to_save)
+    
+    return {"message": "Credenciales configuradas exitosamente."}
+
+
 # --- Endpoint Principal del Proxy ---
-# <--- CAMBIO: TODA ESTA FUNCIÓN HA SIDO REEMPLAZADA ---
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def proxy_to_qwen(request: Request, path: str):
     """
@@ -156,30 +185,3 @@ async def proxy_to_qwen(request: Request, path: str):
                 
         except httpx.RequestError as e:
             raise HTTPException(status_code=502, detail=f"Error al conectar con la API de Qwen: {e}")
-
-# --- Endpoint de Configuración Inicial (SOLO PARA LA PRIMERA VEZ) ---
-class InitialCredentials(BaseModel):
-    access_token: str
-    refresh_token: str
-    # La expiración inicial en segundos (ej: 3600 para 1 hora)
-    expires_in: int = 3600 
-
-@app.post("/setup")
-async def setup_credentials(initial_creds: InitialCredentials):
-    """
-    Endpoint para configurar las credenciales por primera vez.
-    DEBERÍAS PROTEGER ESTE ENDPOINT O ELIMINARLO EN PRODUCCIÓN.
-    """
-    if CREDS_FILE.exists():
-        raise HTTPException(status_code=400, detail="Las credenciales ya han sido configuradas.")
-    
-    expiry_timestamp = int(time.time()) + initial_creds.expires_in
-    
-    creds_to_save = QwenCredentials(
-        access_token=initial_creds.access_token,
-        refresh_token=initial_creds.refresh_token,
-        expiry_date=expiry_timestamp
-    )
-    save_credentials(creds_to_save)
-    
-    return {"message": "Credenciales configuradas exitosamente."}
