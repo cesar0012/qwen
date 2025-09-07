@@ -6,7 +6,7 @@ from typing import Optional
 
 import httpx
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response  # <--- CAMBIO: Añadido Response
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -23,10 +23,10 @@ class QwenCredentials(BaseModel):
 # --- Variables Globales y Funciones de Ayuda ---
 app = FastAPI()
 # Usaremos un archivo para persistir las credenciales, simulando el oauth_creds.json
-CREDS_FILE = Path("oauth_creds.json")
+CREDS_FILE = Path("qwen_credentials.json") # <--- CAMBIO: Nombre del archivo corregido
 
 # URL del endpoint de Qwen al que reenviaremos las solicitudes
-QWEN_API_BASE_URL = "https://portal.qwen.ai/v1"
+QWEN_API_BASE_URL = "https://portal.qwen.ai" # <--- CAMBIO: Quitamos /v1 para que el path lo complete
 
 # URL del endpoint de token de Qwen para refrescar el access_token
 # NOTA: Este es el endpoint estándar para refrescar tokens OAuth2.
@@ -106,42 +106,54 @@ async def refresh_access_token_if_needed() -> QwenCredentials:
     return creds
 
 # --- Endpoint Principal del Proxy ---
+# <--- CAMBIO: TODA ESTA FUNCIÓN HA SIDO REEMPLAZADA ---
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def proxy_to_qwen(request: Request, path: str):
     """
     Este endpoint captura CUALQUIER solicitud y la reenvía a la API de Qwen,
-    gestionando la autenticación automáticamente.
+    gestionando la autenticación automáticamente y manejando errores de forma robusta.
     """
-    # 1. Obtener/Refrescar las credenciales
     creds = await refresh_access_token_if_needed()
-
-    # 2. Preparar la solicitud para Qwen
+    
+    # Construimos la URL completa. path ya incluirá /v1/chat/completions, etc.
     qwen_url = f"{QWEN_API_BASE_URL}/{path}"
-    headers = {
-        "Authorization": f"Bearer {creds.access_token}",
-        "Content-Type": "application/json"
-    }
+    
+    # Copiamos las cabeceras de la solicitud original, excepto 'host'
+    headers = {key: value for key, value in request.headers.items() if key.lower() != 'host'}
+    # Sobrescribimos la cabecera de Autorización con nuestro token válido
+    headers["Authorization"] = f"Bearer {creds.access_token}"
 
-    # Leer el cuerpo de la solicitud original
     body = await request.body()
     
-    # 3. Reenviar la solicitud a Qwen
     async with httpx.AsyncClient() as client:
         try:
-            # Hacemos la solicitud al servidor de Qwen
+            # Reenviamos la solicitud al servidor de Qwen
             response = await client.request(
                 method=request.method,
                 url=qwen_url,
                 headers=headers,
                 content=body,
-                timeout=300.0 # Timeout generoso
+                timeout=300.0
             )
             
-            # 4. Devolver la respuesta de Qwen al cliente original
-            return JSONResponse(
-                content=response.json(),
-                status_code=response.status_code
-            )
+            # Verificamos si la respuesta de Qwen es un JSON antes de procesarla
+            content_type = response.headers.get("content-type", "")
+            
+            if "application/json" in content_type:
+                # Si es un JSON, lo devolvemos como JSON
+                return JSONResponse(
+                    content=response.json(),
+                    status_code=response.status_code
+                )
+            else:
+                # Si NO es un JSON (ej. un error HTML), lo devolvemos tal cual para poder depurar
+                print(f"Respuesta no-JSON de Qwen (Status: {response.status_code}): {response.text}")
+                return Response(
+                    content=response.content,
+                    status_code=response.status_code,
+                    media_type=content_type
+                )
+                
         except httpx.RequestError as e:
             raise HTTPException(status_code=502, detail=f"Error al conectar con la API de Qwen: {e}")
 
