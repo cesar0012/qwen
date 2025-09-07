@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-import requests # Usamos requests sincrónico, más simple para esta tarea
+import requests
 from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -20,9 +20,9 @@ QWEN_TOKEN_REFRESH_URL = "https://qwen.ai/oauth/token"
 QWEN_CLIENT_ID = os.getenv("QWEN_CLIENT_ID", "dummy_client_id")
 QWEN_CLIENT_SECRET = os.getenv("QWEN_CLIENT_SECRET", "dummy_client_secret")
 
-# Clave secreta para proteger el endpoint de credenciales
-# Asegúrate de que la variable de entorno en Coolify se llame 'PROXY_API_KEY'
-PROXY_API_KEY = os.getenv("PROXY_API_KEY", "MI_CLAVE_SECRETA_POR_DEFECTO")
+# Clave secreta para proteger el endpoint de credenciales.
+# Esta se carga desde la variable de entorno de Coolify.
+CREDENTIALS_API_KEY = os.getenv("CREDENTIALS_API_KEY")
 
 # --- Funciones de Ayuda ---
 def load_credentials_from_file():
@@ -49,7 +49,7 @@ def refresh_token_if_needed():
         access_token = os.getenv("QWEN_ACCESS_TOKEN")
         refresh_token = os.getenv("QWEN_REFRESH_TOKEN")
         if not access_token or not refresh_token:
-            print("ERROR: Credenciales iniciales no encontradas en las variables de entorno.")
+            print("ERROR: Credenciales iniciales de Qwen no encontradas en las variables de entorno.")
             return
         creds = {
             "access_token": access_token,
@@ -60,16 +60,17 @@ def refresh_token_if_needed():
     
     # Comprueba si el token ha expirado (con un margen de 60 segundos)
     if time.time() > (creds.get("expiry_date", 0) - 60):
-        print("Token expirado o inicial. Refrescando...")
+        print("Token expirado o inicial. Intentando refrescar...")
         try:
+            # --- <--- CAMBIO IMPORTANTE: Simplificamos el payload de la solicitud ---
+            # La CLI de Qwen probablemente solo envía el refresh_token, sin client_id/secret.
             refresh_data = {
                 "grant_type": "refresh_token",
-                "refresh_token": creds["refresh_token"],
-                "client_id": QWEN_CLIENT_ID,
-                "client_secret": QWEN_CLIENT_SECRET,
+                "refresh_token": creds["refresh_token"]
             }
+            
             response = requests.post(QWEN_TOKEN_REFRESH_URL, data=refresh_data, timeout=30)
-            response.raise_for_status()
+            response.raise_for_status() # Lanza un error si la respuesta es 4xx o 5xx
             
             new_token_data = response.json()
             new_expiry = int(time.time()) + new_token_data.get("expires_in", 3600)
@@ -85,27 +86,18 @@ def refresh_token_if_needed():
             save_credentials_to_file(new_creds)
             print("Token refrescado exitosamente.")
         except Exception as e:
-            print(f"ALERTA: No se pudo refrescar el token de Qwen: {e}")
-            # No lanzamos un error, simplemente serviremos el token antiguo.
-            # La próxima solicitud lo intentará de nuevo.
+            # Imprime una alerta si el refresco falla, pero no detiene el servidor.
+            print(f"ALERTA: No se pudo refrescar el token de Qwen. Error: {e}")
 
-# --- <--- CAMBIO IMPORTANTE: FUNCIÓN DE SEGURIDAD CON LOGGING DE DEPURACIÓN ---
+# --- Función de Seguridad ---
 async def verify_api_key(x_api_key: str = Header(None)):
     """Verifica que la solicitud incluya la clave secreta correcta."""
-    
-    # Imprimimos en los logs para ver qué está pasando
-    print("--- INICIO DE VERIFICACIÓN DE API KEY ---")
-    print(f"DEBUG: Clave secreta esperada en el servidor: '{PROXY_API_KEY}'")
-    print(f"DEBUG: Clave recibida en la cabecera X-API-Key: '{x_api_key}'")
-
-    if x_api_key is None or x_api_key != PROXY_API_KEY:
-        print("DEBUG: ¡La verificación de la clave falló!")
-        print("--- FIN DE VERIFICACIÓN DE API KEY ---")
+    if CREDENTIALS_API_KEY is None:
+        # Medida de seguridad: si la clave secreta no está configurada en el servidor, no permitir ninguna solicitud.
+        raise HTTPException(status_code=500, detail="El servidor no tiene una CREDENTIALS_API_KEY configurada.")
+        
+    if x_api_key is None or x_api_key != CREDENTIALS_API_KEY:
         raise HTTPException(status_code=401, detail="API Key inválida o no proporcionada en la cabecera X-API-Key")
-    
-    print("DEBUG: ¡La verificación de la clave fue exitosa!")
-    print("--- FIN DE VERIFICACIÓN DE API KEY ---")
-    return x_api_key
 
 # --- Endpoints de la API ---
 @app.get("/")
@@ -125,4 +117,5 @@ def serve_credentials():
     if creds:
         return JSONResponse(content=creds)
     else:
+        # Esto solo debería ocurrir si las variables de entorno no están configuradas.
         raise HTTPException(status_code=404, detail="Credenciales no disponibles en el servidor.")
