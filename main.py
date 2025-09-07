@@ -21,7 +21,8 @@ QWEN_CLIENT_ID = os.getenv("QWEN_CLIENT_ID", "dummy_client_id")
 QWEN_CLIENT_SECRET = os.getenv("QWEN_CLIENT_SECRET", "dummy_client_secret")
 
 # Clave secreta para proteger el endpoint de credenciales
-CREDENTIALS_API_KEY = os.getenv("CREDENTIALS_API_KEY", "MI_CLAVE_SECRETA_PARA_CREDENCIALES")
+# Asegúrate de que la variable de entorno en Coolify se llame 'CREDENTIALS_API_KEY'
+CREDENTIALS_API_KEY = os.getenv("CREDENTIALS_API_KEY", "MI_CLAVE_SECRETA_POR_DEFECTO")
 
 # --- Funciones de Ayuda ---
 def load_credentials_from_file():
@@ -88,11 +89,23 @@ def refresh_token_if_needed():
             # No lanzamos un error, simplemente serviremos el token antiguo.
             # La próxima solicitud lo intentará de nuevo.
 
-# --- Función de Seguridad ---
+# --- <--- CAMBIO IMPORTANTE: FUNCIÓN DE SEGURIDAD CON LOGGING DE DEPURACIÓN ---
 async def verify_api_key(x_api_key: str = Header(None)):
     """Verifica que la solicitud incluya la clave secreta correcta."""
+    
+    # Imprimimos en los logs para ver qué está pasando
+    print("--- INICIO DE VERIFICACIÓN DE API KEY ---")
+    print(f"DEBUG: Clave secreta esperada en el servidor: '{CREDENTIALS_API_KEY}'")
+    print(f"DEBUG: Clave recibida en la cabecera X-API-Key: '{x_api_key}'")
+
     if x_api_key is None or x_api_key != CREDENTIALS_API_KEY:
+        print("DEBUG: ¡La verificación de la clave falló!")
+        print("--- FIN DE VERIFICACIÓN DE API KEY ---")
         raise HTTPException(status_code=401, detail="API Key inválida o no proporcionada en la cabecera X-API-Key")
+    
+    print("DEBUG: ¡La verificación de la clave fue exitosa!")
+    print("--- FIN DE VERIFICACIÓN DE API KEY ---")
+    return x_api_key
 
 # --- Endpoints de la API ---
 @app.get("/")
