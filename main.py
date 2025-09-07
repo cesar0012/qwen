@@ -105,8 +105,6 @@ async def refresh_access_token_if_needed() -> QwenCredentials:
     # Si no ha expirado, simplemente devuelve las credenciales actuales
     return creds
 
-# --- <--- CAMBIO IMPORTANTE: EL ENDPOINT DE SETUP AHORA VA ANTES DEL ENDPOINT PRINCIPAL ---
-
 # --- Endpoint de Configuración Inicial (SOLO PARA LA PRIMERA VEZ) ---
 class InitialCredentials(BaseModel):
     access_token: str
@@ -134,8 +132,22 @@ async def setup_credentials(initial_creds: InitialCredentials):
     
     return {"message": "Credenciales configuradas exitosamente."}
 
+# --- <--- NUEVO ENDPOINT AÑADIDO AQUÍ ---
+# --- Endpoint para Sincronizar Credenciales (PARA KILO CODE) ---
+@app.get("/credentials")
+async def get_credentials():
+    """
+    Endpoint para que herramientas como Kilo Code puedan descargar el archivo de credenciales.
+    """
+    creds = load_credentials()
+    if not creds:
+        raise HTTPException(status_code=404, detail="El archivo de credenciales no existe en el servidor. Ejecuta el setup primero.")
+    
+    # Kilo Code espera un formato específico, que es el contenido de oauth_creds.json
+    # Este formato puede ser diferente del QwenCredentials. Devolvemos el contenido crudo.
+    return JSONResponse(content=json.loads(CREDS_FILE.read_text()))
 
-# --- Endpoint Principal del Proxy ---
+# --- Endpoint Principal del Proxy (DEBE IR AL FINAL) ---
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
 async def proxy_to_qwen(request: Request, path: str):
     """
