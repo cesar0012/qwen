@@ -3,14 +3,13 @@ WORKDIR /app
 
 # Instalar supervisor y las dependencias de Python
 COPY requirements.txt .
-RUN apt-get update && apt-get install -y supervisor && \
-    pip install --no-cache-dir -r requirements.txt && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+# Ya no necesitamos supervisor, solo gunicorn
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar el código de la aplicación y la configuración de supervisor
+# Copiar todo el código, incluyendo oauth_creds.json
 COPY . .
 
 EXPOSE 8000
 
-# El comando para iniciar supervisor
-CMD ["/usr/bin/supervisord", "-c", "/app/supervisord.conf"]
+# Usamos Gunicorn para ejecutar Flask/FastAPI
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "main:app", "--worker-class", "uvicorn.workers.UvicornWorker"]
