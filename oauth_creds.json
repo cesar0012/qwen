@@ -1,7 +1,7 @@
 {
-  "access_token": "p7A5HjfT0AkbyXIDt-w-JXFLyzYM6DtJCgLbqqAInD8XT-TmNWtgVo9xx59Z0x-qpNkpX0HhxnTutqJa0ZsNYw",
-  "refresh_token": "f4fEg5X57Mqsl_Yy-VCaptkHkF8R6XXYZQzfu762jURBju9Xyxm6ypgRU6W0MTe3Z9xYAF1RPPQioQC49rPTAA",
+  "access_token": "cjp2f64eRrhDZOpnBjVzYZpC-LoKGUcd2qJz2O19HeF4OgwSusPAIHRHzR-b2aYtwFR97YKcnX9_PEN2iSxFIw",
+  "refresh_token": "OMLNnTtsGvPTSPXyaZdEL6ufdFABUTF_vleTQ48JAhsIyrg-_6hEBahIAql-9prlJcNJg4iF38mb9SUElCJryg",
   "token_type": "Bearer",
   "resource_url": "portal.qwen.ai",
-  "expiry_date": 1757675133707
+  "expiry_date": 1757675246738
 }
