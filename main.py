@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 app = FastAPI()
 
-CREDS_FILE = Path("qwen_credentials.json")
+CREDS_FILE = Path("oauth_creds.json")
 PROXY_API_KEY = os.getenv("PROXY_API_KEY")
 
 async def verify_api_key(x_api_key: str = Header(None)):
@@ -21,7 +21,7 @@ async def verify_api_key(x_api_key: str = Header(None)):
 def health_check():
     return {"status": "ok", "message": "Qwen Credential Server is running!"}
 
-@app.get("/credentials.json", dependencies=[Depends(verify_api_key)])
+@app.get("/oauth_creds.json", dependencies=[Depends(verify_api_key)])
 def serve_credentials():
     """Sirve el archivo de credenciales que el worker mantiene actualizado."""
     if CREDS_FILE.exists():

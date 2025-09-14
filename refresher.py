@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 # Carga las mismas variables de entorno que la app principal
 load_dotenv()
 
-CREDS_FILE = Path("qwen_credentials.json")
+CREDS_FILE = Path("oauth_creds.json")
 QWEN_TOKEN_REFRESH_URL = "https://qwen.ai/oauth/token"
 QWEN_CLIENT_ID = os.getenv("QWEN_CLIENT_ID", "dummy_client_id")
 QWEN_CLIENT_SECRET = os.getenv("QWEN_CLIENT_SECRET", "dummy_client_secret")
